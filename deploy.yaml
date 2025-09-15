@@ -1,0 +1,42 @@
+---
+- name: Deploy Spring Boot App with Docker
+  hosts: all_runners
+  become: true
+
+  vars:
+    app_name: build-cluster
+    image_name: isshomin/build-cluster:latest
+    container_port: 8085
+    host_port: 8085
+
+  tasks:
+    - name: Ensure Docker is installed
+      apt:
+        name: docker.io
+        state: present
+        update_cache: yes
+
+    - name: Ensure Docker service is running
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Pull latest image from Docker Hub
+      docker_image:
+        name: "{{ image_name }}"
+        source: pull
+
+    - name: Remove old container if exists
+      docker_container:
+        name: "{{ app_name }}"
+        state: absent
+
+    - name: Run container with new image
+      docker_container:
+        name: "{{ app_name }}"
+        image: "{{ image_name }}"
+        state: started
+        restart_policy: always
+        ports:
+          - "{{ host_port }}:{{ container_port }}"
