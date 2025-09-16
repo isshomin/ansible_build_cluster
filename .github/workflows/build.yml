@@ -10,8 +10,7 @@ jobs:
     runs-on: [self-hosted, ec2-runner]
     continue-on-error: true
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
       - name: Set up JDK 17
         uses: actions/setup-java@v3
@@ -41,8 +40,7 @@ jobs:
     runs-on: [self-hosted, local-runner]
     continue-on-error: true
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
       - name: Set up JDK 17
         uses: actions/setup-java@v3
@@ -69,8 +67,8 @@ jobs:
         run: docker push isshomin/build-cluster:local-${{ github.sha }}
 
   promote-latest:
-    runs-on: ubuntu-latest
-    needs: [build-ec2, build-local]
+    runs-on: [self-hosted, controller]
+    needs: [build-local, build-ec2]
     if: always()
     steps:
       - name: Log in to Docker Hub
@@ -79,33 +77,25 @@ jobs:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-      - name: Promote EC2 build to latest (preferred)
+      - name: Promote EC2 build to latest (if succeeded)
+        if: needs.build-ec2.result == 'success'
         run: |
-          if docker pull isshomin/build-cluster:ec2-${{ github.sha }}; then
-            docker tag isshomin/build-cluster:ec2-${{ github.sha }} isshomin/build-cluster:latest
-            docker push isshomin/build-cluster:latest
-            echo "✅ EC2 build promoted to latest"
-            exit 0
-          fi
+          docker pull isshomin/build-cluster:ec2-${{ github.sha }}
+          docker tag isshomin/build-cluster:ec2-${{ github.sha }} isshomin/build-cluster:latest
+          docker push isshomin/build-cluster:latest
 
-      - name: Fallback to Local build if EC2 failed
+      - name: Promote Local build to latest (fallback if EC2 failed)
+        if: needs.build-ec2.result != 'success' && needs.build-local.result == 'success'
         run: |
-          if docker pull isshomin/build-cluster:local-${{ github.sha }}; then
-            docker tag isshomin/build-cluster:local-${{ github.sha }} isshomin/build-cluster:latest
-            docker push isshomin/build-cluster:latest
-            echo "⚠️ Fallback: Local build promoted to latest"
-          else
-            echo "❌ No build available for promotion"
-            exit 1
-          fi
+          docker pull isshomin/build-cluster:local-${{ github.sha }}
+          docker tag isshomin/build-cluster:local-${{ github.sha }} isshomin/build-cluster:latest
+          docker push isshomin/build-cluster:latest
 
   deploy:
     runs-on: [self-hosted, controller]
     needs: promote-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
+      - uses: actions/checkout@v3
       - name: Run Ansible Playbook
         run: ansible-playbook -i inventory.ini deploy.yml
         env:
