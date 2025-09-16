@@ -103,10 +103,7 @@ jobs:
     runs-on: [self-hosted, controller]
     needs: promote-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Run Ansible Playbook
-        run: ansible-playbook -i ./inventory.ini deploy.yml
+      - name: Run Ansible Playbook (from controller local config)
+        run: ansible-playbook -i ~/ansible/inventory.ini ~/ansible/deploy.yml
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
