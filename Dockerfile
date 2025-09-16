@@ -3,8 +3,9 @@ FROM gradle:8.5-jdk17 AS builder
 WORKDIR /app
 
 # Gradle 캐시 최적화
-COPY build.gradle settings.gradle gradlew ./
-COPY gradle ./gradle
+COPY gradle gradle
+COPY gradlew .
+COPY build.gradle settings.gradle ./
 RUN ./gradlew dependencies --no-daemon || return 0
 
 # 소스 복사 및 빌드
