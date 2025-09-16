@@ -31,22 +31,25 @@ jobs:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-      - name: Build Docker image
-        run: docker build -t isshomin/build-cluster:latest .
+      - name: Pull existing image for cache (ignore errors if not exists)
+        run: docker pull isshomin/build-cluster:latest || true
+
+      - name: Build Docker image with cache
+        run: |
+          docker build \
+            --cache-from=isshomin/build-cluster:latest \
+            -t isshomin/build-cluster:latest .
 
       - name: Push Docker image
         run: docker push isshomin/build-cluster:latest
 
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: build
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-
-      - name: Install Ansible
-        run: sudo apt-get update && sudo apt-get install -y ansible
 
       - name: Run Ansible Playbook
         run: ansible-playbook -i inventory.ini deploy.yml

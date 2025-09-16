@@ -1,0 +1,19 @@
+# Gradle build cache & output
+.gradle/
+build/
+
+# IDE & editor files
+.idea/
+.vscode/
+*.iml
+*.class
+*.swp
+*.tmp
+
+# Git
+.git
+.gitignore
+
+# OS / misc files
+.DS_Store
+*.log
