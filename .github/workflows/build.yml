@@ -57,17 +57,14 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-      - name: Promote EC2 build to latest (preferred)
+
+      - name: Promote EC2 build to latest, fallback to Local
         run: |
           if docker pull isshomin/build-cluster:ec2-${{ github.sha }}; then
             docker tag isshomin/build-cluster:ec2-${{ github.sha }} isshomin/build-cluster:latest
             docker push isshomin/build-cluster:latest
             echo "✅ EC2 build promoted to latest"
-            exit 0
-          fi
-      - name: Fallback to Local build if EC2 failed
-        run: |
-          if docker pull isshomin/build-cluster:local-${{ github.sha }}; then
+          elif docker pull isshomin/build-cluster:local-${{ github.sha }}; then
             docker tag isshomin/build-cluster:local-${{ github.sha }} isshomin/build-cluster:latest
             docker push isshomin/build-cluster:latest
             echo "⚠️ Fallback: Local build promoted to latest"
