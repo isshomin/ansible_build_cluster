@@ -3,9 +3,10 @@
 
 ## ✒ 목적
 
-원래는 CI/CD 하면 Jenkins만 떠올렸지만, **GitHub Actions와 Ansible을 조합해도 충분히 자동화가 가능하다는 점**이 흥미로웠습니다. </br>
-특히 빌드 자체는 Amazon EC2와 VirtualBox VM에 설치한 Self-hosted Runner로 처리하고, 배포는 Ansible이 맡는 구조를 직접 구성해보고 싶었습니다. </br>
-단순히 빌드 시간을 줄이는 것보다 **리소스 분리, 안정성, 병렬성**을 확보할 수 있는 빌드 클러스터의 설계와 장애 대응 테스트에 초점을 두었으며, 클라우드와 로컬을 혼합해 **실제 서비스 환경과 유사성을 확보하면서도 비용 효율까지 고려한 구성**을 만들고자 했습니다. </br>
+원래는 CI/CD 하면 Jenkins만 떠올렸지만, **GitHub Actions와 Ansible을 조합해도 충분히 자동화가 가능하다는 점**이 흥미로웠습니다. </br></br>
+특히 빌드 자체는 Amazon EC2와 VirtualBox VM에 설치한 Self-hosted Runner로 처리하고, 배포는 Ansible이 맡는 구조를 직접 구성해보고 싶었습니다. </br></br>
+단순히 빌드 시간을 줄이는 것보다 **리소스 분리, 안정성, 병렬성**을 확보할 수 있는 빌드 클러스터의 설계와 장애 대응 테스트에 초점을 두었으며,</br>
+클라우드와 로컬을 혼합해 **실제 서비스 환경과 유사성을 확보하면서도 비용 효율까지 고려한 구성**을 만들고자 했습니다. </br>
 
 </br>
 
@@ -50,6 +51,7 @@
 </br>
 
 ### 📄 Ansible Inventory(.ini)
+- 빌드/배포 대상 서버 정보를 정의하는 설정 파일
 ```ini
 # ---------------- 빌드 러너 ----------------
 [local_runners]
@@ -74,7 +76,6 @@ local_deploy
 aws_deploy
 
 ```
-- 빌드/배포 대상 서버 정보를 정의하는 설정 파일
 
 </br>
 
@@ -84,7 +85,9 @@ aws_deploy
 ### 🖥️ EC2
 <img width="1266" height="213" alt="image" src="https://github.com/user-attachments/assets/65e92733-ba66-462c-847e-4370863b53e1" />
 
-
+</br>
+</br>
+</br>
 </br>
 
 ---
@@ -135,6 +138,8 @@ aws_deploy
 
 - 기본 경로(EC2 Runner)가 정상적으로 동작한 케이스
 
+</br>
+
 ### ⚠️ 시나리오 2: EC2 빌드 실패 → Local Runner Fallback
 
 <img width="1374" height="409" alt="image" src="https://github.com/user-attachments/assets/876b39f2-e7b1-42e3-a7fc-d7a55bb3864d" />
@@ -153,7 +158,7 @@ aws_deploy
 
 ## ✅ 배포 완료
 
-### 📄 Deploy.yml
+### 📄 Deploy.yml (민감정보 제외)
 ```yml
 ---
 - name: Deploy Spring Boot App with Docker
@@ -226,6 +231,8 @@ aws_deploy
 
 - 브라우저 `localhost:18085` 접속 성공
 
+</br>
+
 ### 🗄️ VirtualBox VM (Local)
 
 <img width="1059" height="226" alt="image" src="https://github.com/user-attachments/assets/207be16e-6969-4f6a-bd8d-b11b6d767ca2" /> </br>
@@ -238,10 +245,109 @@ aws_deploy
 
 ## 💥 트러블슈팅
 
+### 1️⃣ EC2에서 SSH 포트 변경 시 추가 설정 필요
+
+### ⛅ 원인추론
+- Local VM은 sshd_config 수정 후 서비스 재시작만으로 포트 변경이 적용됨
+- Amazon EC2는 AWS 특성상 보안그룹 규칙 + systemd socket 설정까지 영향
+- 단순히 sshd_config 만 수정하면 새 포트 리스닝이 잡히지 않아 접속 불가
+
+### 🌞 해결
+```ruby
+sudo mkdir -p /etc/systemd/system/ssh.socket.d
+sudo tee /etc/systemd/system/ssh.socket.d/override.conf >/dev/null <<'EOF'
+[Socket]
+ListenStream=
+ListenStream=2222
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl restart ssh.socket
+
+sudo systemctl restart ssh
+ss -tulpen | egrep ':(22|2222)\s'
+```
+- systemctl daemon-reload 후 ssh.socket 및 ssh 서비스 재시작
+
+</br>
+
+---
+
+### 2️⃣ EC2 Runner에서  빌드 실패
+![image](https://github.com/user-attachments/assets/70f56c90-d751-4209-b20d-3a07e9a166e4)
+
+### ⛅ 원인추론
+- t2.micro 환경에서 메모리도 1GB가 Gradle 압축 해제/캐시 쓰기 도중 메모리 부족(OOM) → I/O 실패가 동반될 가능성 높음
+- docker system prune -a 해도 지속적으로 빌드 실패
+
+### 🌞 해결
+- 인스턴스 타입을 메모리가 더 높은 t2.medium으로 변경
+
+</br>
+
+---
+
+### 3️⃣ ProxyJump 연결 문제
+
+### ⛅ 원인추론
+- Private EC2는 Bastion을 통해서만 접근 가능
+- Key를 Bastion에 저장하지 않고 Controller에서만 관리하려고 함
+
+### 🌞 해결
+```ini
+[aws-backend]
+10.0.2.74 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/aws.pem
+            ansible_ssh_common_args='-o ProxyJump=ubuntu@<Bastion-IP>'
+```
+- Ansible 인벤토리 혹은 SSH 설정에서 ProxyJump 지정
+- 보안 및 관리 효율성을 위해 Key는 Controller에만 두고 Bastion은 단순 경유지로 사용
+
+</br>
+
+---
+
+### 4️⃣ Ansible sudo 권한 부족
+![image](https://github.com/user-attachments/assets/f004e8f9-1364-4c32-9ad9-862fff0d93f7)
+
+### ⛅ 원인추론
+- Ansible이 원격 서버에서 become: true 옵션으로 sudo 실행 시도
+- 대상 서버에서 해당 계정의 sudo 권한이 제한적이어서 실행 실패
+
+### 🌞 해결
+```yml
+
+sudo visudo
+
+# 추가
+username ALL=(ALL) NOPASSWD:ALL
+```
+- visudo 를 통해 Ansible 실행 계정에 sudo 권한 부여
+
+</br>
+
+---
+
+###  5️⃣ Docker 이미지 Pull 에러
+![image](https://github.com/user-attachments/assets/f2ffd946-3780-4885-abda-da17cea47bee)
+
+### ⛅ 원인추론
+- docker system prune 이후 캐시 및 로컬 이미지가 모두 삭제됨
+- 따라서 Ansible 배포 테스트 시 manifest unknown 에러 발생함
+
+
+### 🌞 해결
+- 코드 다시 커밋 후 푸시 → GitHub Actions 트리거 실행으로 정상 배포
 
 </br>
 
 ---
 
 ## 💭 회고
+**GitHub Actions**는 Jenkins처럼 별도의 서버 관리가 필요 없어서 훨씬 편하게 시작할 수 있었습니다.</br>
+DooD/DinD 같은 번거로운 설정도 없고, 저장소와 바로 연동된 점이 특히 편리했으며 Ngrok 호스팅 웹훅 트리거 설정도 필요 없어 단순했습니다.</br></br>
 
+EC2와 VirtualBox VM을 **Self-hosted Runner**로 묶어 **클라우드와 로컬을 아우르는 빌드 클러스터**를 직접 구성해 본 것도 의미 있었습니다.</br>
+특히 **Runner 장애 시 Local Runner로 fallback 되는 구조**를 검증하면서, 안정성과 유연성을 확보하는 방식을 직접 체감할 수 있었습니다.</br></br>
+
+또한 **Ansible을 CI/CD에 처음 적용**하면서 배포 과정을 플레이북 기반으로 관리하는 방식을 경험할 수 있었고,</br>
+**ProxyJump**를 활용해 Bastion을 단순 경유지로 두며 키는 컨트롤러에서만 관리해 보안과 접근 제어를 강화하는 패턴도 시도해 볼 수 있었습니다.
