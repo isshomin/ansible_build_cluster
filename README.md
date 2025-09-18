@@ -1,7 +1,7 @@
-# Ansible 기반 빌드 클러스터 (AWS EC2 + 로컬 VM)
+# 🕸️ Ansible 기반 빌드 클러스터 (Amazon EC2 + 로컬 VM)
 
 
-## 목적 ✒
+## ✒ 목적
 
 원래는 CI/CD 하면 Jenkins만 떠올렸지만, **GitHub Actions와 Ansible을 조합해도 충분히 자동화가 가능하다는 점**이 흥미로웠습니다. </br>
 특히 빌드 자체는 Amazon EC2와 VirtualBox VM에 설치한 Self-hosted Runner로 처리하고, 배포는 Ansible이 맡는 구조를 직접 구성해보고 싶었습니다. </br>
@@ -11,7 +11,7 @@
 
 ---
 
-## 초기설정 ⚙
+## ⚙ 초기설정
 ### 🏗️ 빌드 클러스터 (Controller + Runners)
 
 <img width="806" height="352" alt="image" src="https://github.com/user-attachments/assets/90626e06-ecd5-45b9-a2c0-251e1cf6cb5f" />
@@ -78,20 +78,20 @@ aws_deploy
 
 </br>
 
----
-
-## 아키텍처
-
-
-(추가예정)
-
-(리소스맵)
+### 🌐 VPC 구성도
 <img width="1668" height="752" alt="image" src="https://github.com/user-attachments/assets/beec408b-3e46-429a-8835-c5083f9b78d3" />
 
-(ec2)
+### 🖥️ EC2
 <img width="1266" height="213" alt="image" src="https://github.com/user-attachments/assets/65e92733-ba66-462c-847e-4370863b53e1" />
 
 
+</br>
+
+---
+
+## 🏗️ Architecture
+
+![image](https://github.com/user-attachments/assets/12a09935-579e-4750-a0dc-9a779e9af561)
 
 </br>
 
@@ -101,19 +101,19 @@ aws_deploy
 
 <img width="1374" height="418" alt="image" src="https://github.com/user-attachments/assets/52fa4680-cbd1-4d94-a160-f29094a7fc1b" />
 
-### build-ec2
+### 📂 build-ec2
 - Gradle 빌드 + Docker 이미지 빌드 & 푸시
 - 기본 빌드 경로 (우선 실행 대상)
 
-### build-local
+### 📂 build-local
 - Gradle 빌드 + Docker 이미지 빌드 & 푸시
 - EC2 Runner 실패 시 fallback 용도
 
-### promote-latest
+### 📂 promote-latest
 - EC2 빌드 성공 시 → latest 태그로 승격
 - EC2 빌드 실패 시 → Local 빌드 fallback 승격
 
-### deploy
+### 📂 deploy
 - Ansible Playbook 실행
 - 입력값(aws, local, all)에 따라 배포 타깃 선택
 
@@ -220,13 +220,13 @@ aws_deploy
         var: app_logs.stdout_lines
 ```
 
-### EC2 (Private Subnet)
+### 🗄️ EC2 (Private Subnet)
 
 <img width="698" height="245" alt="image" src="https://github.com/user-attachments/assets/681150f2-7189-4505-a903-9180a55b4678" /> </br>
 
 - 브라우저 `localhost:18085` 접속 성공
 
-### VirtualBox VM (Local)
+### 🗄️ VirtualBox VM (Local)
 
 <img width="1059" height="226" alt="image" src="https://github.com/user-attachments/assets/207be16e-6969-4f6a-bd8d-b11b6d767ca2" /> </br>
 
@@ -236,4 +236,12 @@ aws_deploy
 
 ---
 
-## 트러블슈팅
+## 💥 트러블슈팅
+
+
+</br>
+
+---
+
+## 💭 회고
+
